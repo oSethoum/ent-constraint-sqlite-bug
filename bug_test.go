@@ -3,6 +3,7 @@ package bug
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"testing"
@@ -56,9 +57,14 @@ func TestBugMaria(t *testing.T) {
 
 func test(t *testing.T, client *ent.Client) {
 	ctx := context.Background()
-	client.User.Delete().ExecX(ctx)
-	client.User.Create().SetName("Ariel").SetAge(30).ExecX(ctx)
-	if n := client.User.Query().CountX(ctx); n != 1 {
-		t.Errorf("unexpected number of users: %d", n)
+	builders := []*ent.UserCreate{}
+	for i := 0; i < 10; i++ {
+		builder := client.User.Create().SetName("coder").SetAge(27)
+		builders = append(builders, builder)
+	}
+	_, err := client.User.CreateBulk(builders...).Save(ctx)
+	log.Println(err)
+	if err == nil {
+		t.Errorf("Unexpected behavior of CreateBulk")
 	}
 }
