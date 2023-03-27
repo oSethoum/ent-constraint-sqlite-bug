@@ -31,6 +31,20 @@ func (uc *UserCreate) SetName(s string) *UserCreate {
 	return uc
 }
 
+// SetID sets the "id" field.
+func (uc *UserCreate) SetID(s string) *UserCreate {
+	uc.mutation.SetID(s)
+	return uc
+}
+
+// SetNillableID sets the "id" field if the given value is not nil.
+func (uc *UserCreate) SetNillableID(s *string) *UserCreate {
+	if s != nil {
+		uc.SetID(*s)
+	}
+	return uc
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (uc *UserCreate) Mutation() *UserMutation {
 	return uc.mutation
@@ -38,6 +52,7 @@ func (uc *UserCreate) Mutation() *UserMutation {
 
 // Save creates the User in the database.
 func (uc *UserCreate) Save(ctx context.Context) (*User, error) {
+	uc.defaults()
 	return withHooks[*User, UserMutation](ctx, uc.sqlSave, uc.mutation, uc.hooks)
 }
 
@@ -63,6 +78,14 @@ func (uc *UserCreate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (uc *UserCreate) defaults() {
+	if _, ok := uc.mutation.ID(); !ok {
+		v := user.DefaultID()
+		uc.mutation.SetID(v)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (uc *UserCreate) check() error {
 	if _, ok := uc.mutation.Age(); !ok {
@@ -85,8 +108,13 @@ func (uc *UserCreate) sqlSave(ctx context.Context) (*User, error) {
 		}
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(string); ok {
+			_node.ID = id
+		} else {
+			return nil, fmt.Errorf("unexpected User.ID type: %T", _spec.ID.Value)
+		}
+	}
 	uc.mutation.id = &_node.ID
 	uc.mutation.done = true
 	return _node, nil
@@ -95,8 +123,12 @@ func (uc *UserCreate) sqlSave(ctx context.Context) (*User, error) {
 func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	var (
 		_node = &User{config: uc.config}
-		_spec = sqlgraph.NewCreateSpec(user.Table, sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt))
+		_spec = sqlgraph.NewCreateSpec(user.Table, sqlgraph.NewFieldSpec(user.FieldID, field.TypeString))
 	)
+	if id, ok := uc.mutation.ID(); ok {
+		_node.ID = id
+		_spec.ID.Value = id
+	}
 	if value, ok := uc.mutation.Age(); ok {
 		_spec.SetField(user.FieldAge, field.TypeInt, value)
 		_node.Age = value
@@ -122,6 +154,7 @@ func (ucb *UserCreateBulk) Save(ctx context.Context) ([]*User, error) {
 	for i := range ucb.builders {
 		func(i int, root context.Context) {
 			builder := ucb.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*UserMutation)
 				if !ok {
@@ -148,10 +181,6 @@ func (ucb *UserCreateBulk) Save(ctx context.Context) ([]*User, error) {
 					return nil, err
 				}
 				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
-					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
-				}
 				mutation.done = true
 				return nodes[i], nil
 			})

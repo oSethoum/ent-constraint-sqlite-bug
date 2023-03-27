@@ -3,7 +3,6 @@ package bug
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"testing"
@@ -62,8 +61,12 @@ func test(t *testing.T, client *ent.Client) {
 		builder := client.User.Create().SetName("coder").SetAge(27)
 		builders = append(builders, builder)
 	}
-	_, err := client.User.CreateBulk(builders...).Save(ctx)
-	log.Println(err)
+	users, err := client.User.CreateBulk(builders...).Save(ctx)
+
+	if users[0].ID == users[1].ID {
+		t.Errorf("ID has to be unique per entity")
+	}
+
 	if err == nil {
 		t.Errorf("Unexpected behavior of CreateBulk")
 	}
